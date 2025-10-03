@@ -19,4 +19,12 @@ spring:
                   uri: http://order-service:8083
                   predicates:
                       Path=/api/orders/**
+                - id: depot-service
+                  uri: http://depot-service:8084
+                  predicates:
+                      Path=/api/depot/**
+                - id: supply-service
+                  uri: http://supply-service:8084
+                  predicates:
+                      Path=/api/supply/**
 

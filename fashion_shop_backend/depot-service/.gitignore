@@ -31,5 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
-aplication.yml
-application.properties
+aplication.properties
+application.yml
+.env
+.env.local

@@ -31,5 +31,33 @@ build/
 
 ### VS Code ###
 .vscode/
-aplication.yml
-application.properties
+application-properties
+application.yml
+application-dev.properties
+application-dev.yml
+application-prod.properties
+application-prod.yml
+application-test.properties
+application-test.yml
+credentials.json
+keystore.jks
+*.log
+logs/
+*.h2.db
+*.mv.db
+hs_err_pid*.log
+*.class
+*.jar
+*.war
+*.ear
+*.db
+*.sql
+*.sqlite
+*.sqlite3
+*.iml
+*.ipr
+*.iws
+*.swp
+*~
+.DS_Store
+Thumbs.db
