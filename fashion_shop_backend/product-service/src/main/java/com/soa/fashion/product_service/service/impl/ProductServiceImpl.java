@@ -1,6 +1,9 @@
 package com.soa.fashion.product_service.service.impl;
 
+import com.soa.fashion.product_service.dto.ProductColorDto;
 import com.soa.fashion.product_service.dto.ProductDto;
+import com.soa.fashion.product_service.dto.ProductImgDto;
+import com.soa.fashion.product_service.dto.ProductSizeDto;
 import com.soa.fashion.product_service.entity.Product;
 import com.soa.fashion.product_service.entity.ProductColor;
 import com.soa.fashion.product_service.entity.ProductImg;
@@ -9,6 +12,7 @@ import com.soa.fashion.product_service.repository.ProductColorRepository;
 import com.soa.fashion.product_service.repository.ProductImgRepository;
 import com.soa.fashion.product_service.repository.ProductRepository;
 import com.soa.fashion.product_service.repository.ProductSizeRepository;
+import com.soa.fashion.product_service.service.CloudinaryService;
 import com.soa.fashion.product_service.service.ProductService;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -23,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 
-import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +45,8 @@ public class ProductServiceImpl implements ProductService {
     private ProductColorRepository productColorRepository;
     @Autowired
     private ProductSizeRepository productSizeRepository;
+    @Autowired
+    private CloudinaryService cloudinaryService;
     @Override
     @Transactional
     public boolean addFromExcel(MultipartFile file) {
@@ -125,8 +131,163 @@ public class ProductServiceImpl implements ProductService {
             return false;
         }
     }
+
     @Override
-    public boolean addProduct(ProductDto productDto) {
-        return false;
+    public List<ProductDto> getAllActiveProducts() {
+        return productRepository.getAllActiveProducts().stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+    @Override
+    public ProductDto addProduct(ProductDto productDto , List<MultipartFile> images) {
+        Product product = new Product();
+        product.setTitle(productDto.getTitle());
+        product.setDescription(productDto.getDescription());
+        product.setPrice(productDto.getPrice());
+        product.setMaterial(productDto.getMaterial());
+        product.setProductUsage(productDto.getProductUsage());
+        product.setNote(productDto.getNote());
+        product.setCategory(productDto.getCategory());
+        Product saved = productRepository.save(product);
+
+
+        for (MultipartFile img : images) {
+            String url = cloudinaryService.uploadImage(img);
+            ProductImg pImg = new ProductImg();
+            pImg.setProduct(saved);
+            pImg.setImageUrl(url);
+            productImgRepository.save(pImg);
+        }
+
+
+        if (productDto.getSize() != null) {
+            productDto.getSize().forEach(s -> {
+                ProductSize size = new ProductSize();
+                size.setProduct(saved);
+                size.setSize(s.getSize());
+                productSizeRepository.save(size);
+            });
+        }
+
+
+        if (productDto.getColor() != null) {
+            productDto.getColor().forEach(c -> {
+                ProductColor pc = new ProductColor();
+                pc.setProduct(saved);
+                pc.setColor(c.getColor());
+                productColorRepository.save(pc);
+            });
+        }
+        Product full = productRepository.findById(saved.getId()).orElseThrow();
+        return mapToDTO(full);
+    }
+
+    @Override
+    @Transactional
+    public ProductDto updateProduct(
+            String productId,
+            ProductDto productDto,
+            List<MultipartFile> newImages,
+            List<Long> deleteImageIds
+    ) {
+
+        Product product = productRepository.findByProductId(productId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+
+
+        product.setTitle(productDto.getTitle());
+        product.setDescription(productDto.getDescription());
+        product.setPrice(productDto.getPrice());
+        product.setMaterial(productDto.getMaterial());
+        product.setProductUsage(productDto.getProductUsage());
+        product.setNote(productDto.getNote());
+        product.setCategory(productDto.getCategory());
+        product.setUpdatedAt(LocalDateTime.now());
+        productRepository.save(product);
+
+        if (deleteImageIds != null) {
+            for (Long imgId : deleteImageIds) {
+                ProductImg img = productImgRepository.findById(imgId)
+                        .orElseThrow(() -> new RuntimeException("Ảnh không tồn tại"));
+
+
+                cloudinaryService.deleteImage(img.getImageUrl());
+                productImgRepository.delete(img);
+            }
+        }
+
+        if (newImages != null) {
+            for (MultipartFile file : newImages) {
+                String url = cloudinaryService.uploadImage(file);
+
+                ProductImg pImg = new ProductImg();
+                pImg.setProduct(product);
+                pImg.setImageUrl(url);
+
+                productImgRepository.save(pImg);
+            }
+        }
+
+
+        productSizeRepository.deleteAllByProduct(product);
+        if (productDto.getSize() != null) {
+            productDto.getSize().forEach(s -> {
+                ProductSize ps = new ProductSize();
+                ps.setProduct(product);
+                ps.setSize(s.getSize());
+                productSizeRepository.save(ps);
+            });
+        }
+
+
+        productColorRepository.deleteAllByProduct(product);
+        if (productDto.getColor() != null) {
+            productDto.getColor().forEach(c -> {
+                ProductColor pc = new ProductColor();
+                pc.setProduct(product);
+                pc.setColor(c.getColor());
+                productColorRepository.save(pc);
+            });
+        }
+
+
+        Product full = productRepository.findById(product.getId()).orElseThrow();
+
+        return mapToDTO(full);
+    }
+
+
+    @Override
+    @Transactional
+    public void softDelete(String productId) {
+        Product product = productRepository.findByProductId(productId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+        product.setDeleted(true);
+        product.setUpdatedAt(LocalDateTime.now());
+        productRepository.save(product);
+    }
+
+    public ProductDto mapToDTO(Product product){
+        return new ProductDto(
+                product.getProductId(),
+                product.getTitle(),
+                product.getDescription(),
+                product.getImages().stream()
+                               .map(img -> new ProductImgDto(img.getImageUrl())).toList(),
+
+                product.getPrice(),
+                product.getMaterial(),
+                product.getProductUsage(),
+                product.getNote(),
+                product.getSize().stream()
+                        .map(s -> new ProductSizeDto(s.getSize()))
+                        .toList(),
+
+                product.getColor().stream()
+                        .map(c -> new ProductColorDto(c.getColor()))
+                        .toList(),
+
+                product.getCategory()
+        );
     }
 }

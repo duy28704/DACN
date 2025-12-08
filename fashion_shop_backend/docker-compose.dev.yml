@@ -20,6 +20,13 @@ services:
     build: ./payment-service
     ports:
       - "8084:8084"
+
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
   gateway-service:
     build: ./gateway-service
     ports:
